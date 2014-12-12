@@ -2,7 +2,7 @@
 #define FILEVAULT_H
 
 #include <stdint.h>
-#include "dmg.h"
+#include <libdmg-1.0/dmg.h>
 
 #ifdef HAVE_CRYPT
 

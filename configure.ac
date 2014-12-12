@@ -24,7 +24,7 @@ AC_PROG_LIBTOOL
 
 PKG_CHECK_MODULES(plist, libplist >= 1.0)
 PKG_CHECK_MODULES(crippy, libcrippy-1.0 >= 1.0)
-PKG_CHECK_MODULES(hfsplus, libhfsplus-1.0 >= 2.0)
+PKG_CHECK_MODULES(hfsplus, libhfsplus-1.0 >= 1.0)
 
 AC_CONFIG_FILES(Makefile tools/Makefile src/Makefile include/Makefile libdmg-1.0.pc)
 AC_OUTPUT

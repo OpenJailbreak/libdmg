@@ -7,7 +7,7 @@ AM_LDFLAGS = $(libcrippy_LIBS) \
 			$(libhfsplus_LIBS) \
 			$(libplist_LIBS)
 
-libdmg_LTLIBRARIES = libdmg-1.0.la
+lib_LTLIBRARIES = libdmg-1.0.la
 
 libdmg_1_0_la_SOURCES = libdmg.c \
 						abstractfile.c \
