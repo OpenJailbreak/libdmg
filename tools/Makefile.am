@@ -8,7 +8,9 @@ AM_LDFLAGS = $(libplist_LIBS) \
 			$(libcrippy_LIBS) 
 
 bin_PROGRAMS = dmg
+
+dmg_SOURCES = dmg.c
+
 dmg_LDADD = libdmg-1.0.la
 dmg_CFLAGS = $(AM_CFLAGS)
 dmg_LDFLAGS = $(AM_LDFLAGS)
-dmg_SOURCES = dmg.c
