@@ -22,6 +22,7 @@ dnl Check if Libtool is present
 dnl Libtool is used for building share libraries 
 AC_PROG_LIBTOOL
 
+PKG_CHECK_MODULES(zlib, zlib >= 1.2)
 PKG_CHECK_MODULES(plist, libplist >= 1.0)
 PKG_CHECK_MODULES(crippy, libcrippy-1.0 >= 1.0)
 PKG_CHECK_MODULES(hfsplus, libhfsplus-1.0 >= 1.0)
