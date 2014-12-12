@@ -2,14 +2,12 @@ AM_CFLAGS = -I$(top_srcdir)/include \
 			$(crippy_CFLAGS) \
 			$(hfsplus_CFLAGS) \
 			$(plist_CFLAGS) \
-			$(zlib_CFLAGS) \
-			-arch i386 -arch x86_64
+			$(zlib_CFLAGS)
 			
 AM_LDFLAGS = $(crippy_LIBS) \
 			$(hfsplus_LIBS) \
 			$(plist_LIBS) \
-			$(zlib_LIBS) \
-			-arch i386 -arch x86_64
+			$(zlib_LIBS)
 
 lib_LTLIBRARIES = libdmg-1.0.la
 libdmg_1_0_la_CFLAGS = $(AM_CFLAGS)
