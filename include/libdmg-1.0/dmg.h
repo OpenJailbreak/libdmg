@@ -29,6 +29,7 @@
 #define ATTRIBUTE_HDIUTIL 0x0050
 
 #define HFSX_VOLUME_TYPE "Apple_HFSX"
+#define APFS_VOLUME_TYPE "Apple_APFS"
 
 #define DDM_SIZE 0x1
 #define PARTITION_SIZE 0x3f
@@ -43,6 +44,17 @@
 
 #define BOOTCODE_DMMY 0x444D4D59
 #define BOOTCODE_GOON 0x676F6F6E
+
+typedef struct {
+	const char* partition_name;
+	const char* partition_type;
+	uint32_t blockSize;
+	uint64_t totalBlocks;
+	uint64_t freeBlocks;
+	uint32_t modifyDate;
+	uint16_t signature;
+	char isHFS;
+} DMGVolumeInfo;
 
 enum {
 	kUDIFFlagsFlattened = 1
@@ -314,7 +326,7 @@ extern "C" {
 	ResourceData* getDataByID(ResourceKey* resource, int id);
 	ResourceKey* insertData(ResourceKey* resources, const char* key, int id, const char* name, const char* data, size_t dataLength, uint32_t attributes);
 	ResourceKey* makePlst();
-	ResourceKey* makeSize(HFSPlusVolumeHeader* volumeHeader);
+	ResourceKey* makeSize(const DMGVolumeInfo* volumeInfo);
 
 	void flipDriverDescriptorRecord(DriverDescriptorRecord* record, char out);
 	void flipPartition(Partition* partition, char out, unsigned int BlockSize);
@@ -337,6 +349,7 @@ extern "C" {
 
 	int extractDmg(AbstractFile* abstractIn, AbstractFile* abstractOut, int partNum);
 	int buildDmg(AbstractFile* abstractIn, AbstractFile* abstractOut, unsigned int BlockSize);
+	int buildDmgWithVolumeInfo(AbstractFile* abstractIn, AbstractFile* abstractOut, unsigned int BlockSize, const DMGVolumeInfo* volumeInfo);
 	int convertToISO(AbstractFile* abstractIn, AbstractFile* abstractOut);
 	int convertToDMG(AbstractFile* abstractIn, AbstractFile* abstractOut);
 #ifdef __cplusplus

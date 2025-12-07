@@ -1,0 +1,13 @@
+libdmg filesystem support
+==========================
+
+libdmg now ships with a small filesystem descriptor API that separates
+UDIF/DMG generation from the filesystem-specific metadata gathering. The
+new `DMGVolumeInfo` structure plus `buildDmgWithVolumeInfo()` entry point
+lets external libraries (for instance, an upcoming APFS helper) provide
+the block counts, signatures, and partition labels without having to
+modify the DMG writer again.
+
+Extraction helpers were also relaxed to look for both `Apple_HFS*` and
+`Apple_APFS` partition tags so APFS volumes can be located inside hybrid
+images even before the dedicated filesystem library lands.

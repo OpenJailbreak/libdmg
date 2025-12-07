@@ -233,7 +233,9 @@ io_func* openDmgFilePartition(AbstractFile* abstractIn, int partition) {
 		((DMG*)toReturn->data)->offset = partitions[partition].pmPyPartStart * BlockSize;
 	} else {
 		for(i = 0; i < numPartitions; i++) {
-			if(strcmp((char*)partitions->pmParType, "Apple_HFSX") == 0 || strcmp((char*)partitions->pmParType, "Apple_HFS") == 0) {
+			if(strcmp((char*)partitions->pmParType, HFSX_VOLUME_TYPE) == 0 ||
+			   strcmp((char*)partitions->pmParType, "Apple_HFS") == 0 ||
+			   strcmp((char*)partitions->pmParType, APFS_VOLUME_TYPE) == 0) {
 				((DMG*)toReturn->data)->offset = partitions->pmPyPartStart * BlockSize;
 				break;
 			}

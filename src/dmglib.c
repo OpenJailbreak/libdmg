@@ -22,7 +22,8 @@ int extractDmg(AbstractFile* abstractIn, AbstractFile* abstractOut, int partNum)
 	if(partNum < 0) {
 		blkxData = getResourceByKey(resources, "blkx")->data;
 		while(blkxData != NULL) {
-			if(strstr(blkxData->name, "Apple_HFS") != NULL) {
+			if(strstr(blkxData->name, "Apple_HFS") != NULL ||
+			   strstr(blkxData->name, APFS_VOLUME_TYPE) != NULL) {
 				break;
 			}
 			blkxData = blkxData->next;
@@ -85,94 +86,95 @@ uint32_t calculateMasterChecksum(ResourceKey* resources) {
 	return result;  
 }
 
-int buildDmg(AbstractFile* abstractIn, AbstractFile* abstractOut, unsigned int BlockSize) {	
-	io_func* io;
-	Volume* volume;  
-	
-	HFSPlusVolumeHeader* volumeHeader;
+int buildDmgWithVolumeInfo(AbstractFile* abstractIn, AbstractFile* abstractOut, unsigned int BlockSize, const DMGVolumeInfo* volumeInfo) {
 	DriverDescriptorRecord* DDM;
 	Partition* partitions;
-	
 	ResourceKey* resources;
 	ResourceKey* curResource;
-	
 	NSizResource* nsiz;
 	NSizResource* myNSiz;
 	CSumResource csum;
-	
 	BLKXTable* blkx;
 	ChecksumToken uncompressedToken;
-	
 	ChecksumToken dataForkToken;
-	
 	UDIFResourceFile koly;
-	
 	off_t plistOffset;
 	uint32_t plistSize;
 	uint32_t dataForkChecksum;
-	
-	io = IOFuncFromAbstractFile(abstractIn);
-	volume = openVolume(io); 
-	volumeHeader = volume->volumeHeader;
-	
+	const char* partitionType;
+	const char* partitionName;
+	uint64_t volumeSectors;
 
-	if(volumeHeader->signature != HFSX_SIGNATURE) {
-		printf("Warning: ASR data only reverse engineered for case-sensitive HFS+ volumes\n");fflush(stdout);
+	if(volumeInfo == NULL) {
+		fprintf(stderr, "buildDmgWithVolumeInfo: volume information is required\n");
+		return FALSE;
 	}
-    
+
+	if(volumeInfo->blockSize == 0) {
+		fprintf(stderr, "buildDmgWithVolumeInfo: invalid filesystem block size\n");
+		return FALSE;
+	}
+
+	if(volumeInfo->totalBlocks == 0) {
+		fprintf(stderr, "buildDmgWithVolumeInfo: invalid total block count\n");
+		return FALSE;
+	}
+
+	partitionType = (volumeInfo->partition_type != NULL) ? volumeInfo->partition_type : HFSX_VOLUME_TYPE;
+	partitionName = (volumeInfo->partition_name != NULL) ? volumeInfo->partition_name : "Mac_OS_X";
+	volumeSectors = (volumeInfo->totalBlocks * (uint64_t) volumeInfo->blockSize) / SECTOR_SIZE;
+
 	resources = NULL;
 	nsiz = NULL;
-    
 	memset(&dataForkToken, 0, sizeof(ChecksumToken));
-	
+
 	printf("Creating and writing DDM and partition map...\n"); fflush(stdout);
-	
-	DDM = createDriverDescriptorMap((volumeHeader->totalBlocks * volumeHeader->blockSize)/SECTOR_SIZE, BlockSize);
-	
-	partitions = createApplePartitionMap((volumeHeader->totalBlocks * volumeHeader->blockSize)/SECTOR_SIZE, HFSX_VOLUME_TYPE, BlockSize);
-	
+
+	DDM = createDriverDescriptorMap((uint32_t) volumeSectors, BlockSize);
+	partitions = createApplePartitionMap((uint32_t) volumeSectors, partitionType, BlockSize);
+
 	int pNum = writeDriverDescriptorMap(-1, abstractOut, DDM, BlockSize, &CRCProxy, (void*) (&dataForkToken), &resources);
 	free(DDM);
 	pNum = writeApplePartitionMap(pNum, abstractOut, partitions, BlockSize, &CRCProxy, (void*) (&dataForkToken), &resources, &nsiz);
 	free(partitions);
 	pNum = writeATAPI(pNum, abstractOut, BlockSize, &CRCProxy, (void*) (&dataForkToken), &resources, &nsiz);
-	
+
 	memset(&uncompressedToken, 0, sizeof(uncompressedToken));
 	SHA1Init(&(uncompressedToken.sha1));
-	
+
 	printf("Writing main data blkx...\n"); fflush(stdout);
-	
+
 	abstractIn->seek(abstractIn, 0);
-	blkx = insertBLKX(abstractOut, abstractIn, USER_OFFSET, (volumeHeader->totalBlocks * volumeHeader->blockSize)/SECTOR_SIZE,
-				pNum, CHECKSUM_CRC32, &BlockSHA1CRC, &uncompressedToken, &CRCProxy, &dataForkToken, volume, 1);
-	
+	blkx = insertBLKX(abstractOut, abstractIn, USER_OFFSET, (uint32_t) volumeSectors,
+				pNum, CHECKSUM_CRC32, &BlockSHA1CRC, &uncompressedToken, &CRCProxy, &dataForkToken, NULL, 1);
+
 	blkx->checksum.data[0] = uncompressedToken.crc;
 	printf("Inserting main blkx...\n"); fflush(stdout);
 
 	char pName[100];
-	sprintf(pName, "Mac_OS_X (Apple_HFSX : %d)", pNum + 1);	
+	sprintf(pName, "%s (%s : %d)", partitionName, partitionType, pNum + 1);
 	resources = insertData(resources, "blkx", pNum, pName, (const char*) blkx, sizeof(BLKXTable) + (blkx->blocksRunCount * sizeof(BLKXRun)), ATTRIBUTE_HDIUTIL);
 	free(blkx);
 
 	printf("Inserting cSum data...\n"); fflush(stdout);
-	
+
 	csum.version = 1;
 	csum.type = CHECKSUM_MKBLOCK;
 	csum.checksum = uncompressedToken.block;
-	
+
 	resources = insertData(resources, "cSum", 2, "", (const char*) (&csum), sizeof(csum), 0);
-	
+
 	printf("Inserting nsiz data\n"); fflush(stdout);
-	
+
 	myNSiz = (NSizResource*) malloc(sizeof(NSizResource));
 	memset(myNSiz, 0, sizeof(NSizResource));
 	myNSiz->isVolume = TRUE;
 	myNSiz->blockChecksum2 = uncompressedToken.block;
 	myNSiz->partitionNumber = 2;
 	myNSiz->version = 6;
-	myNSiz->bytes = (volumeHeader->totalBlocks - volumeHeader->freeBlocks) * volumeHeader->blockSize;
-	myNSiz->modifyDate = volumeHeader->modifyDate;
-	myNSiz->volumeSignature = volumeHeader->signature;
+	myNSiz->bytes = (volumeInfo->totalBlocks - volumeInfo->freeBlocks) * volumeInfo->blockSize;
+	myNSiz->modifyDate = volumeInfo->modifyDate;
+	myNSiz->volumeSignature = volumeInfo->signature;
 	myNSiz->sha1Digest = (unsigned char *)malloc(20);
 	SHA1Final(myNSiz->sha1Digest, &(uncompressedToken.sha1));
 	myNSiz->next = NULL;
@@ -186,16 +188,16 @@ int buildDmg(AbstractFile* abstractIn, AbstractFile* abstractOut, unsigned int B
 		}
 		curNsiz->next = myNSiz;
 	}
-	
+
 	pNum++;
 
 	printf("Writing free partition...\n"); fflush(stdout);
-	
-	pNum = writeFreePartition(pNum, abstractOut, USER_OFFSET + (volumeHeader->totalBlocks * volumeHeader->blockSize)/SECTOR_SIZE, 
+
+	pNum = writeFreePartition(pNum, abstractOut, USER_OFFSET + (uint32_t) volumeSectors,
 			(FREE_SIZE + (BlockSize / SECTOR_SIZE / 2)) / (BlockSize / SECTOR_SIZE) * (BlockSize / SECTOR_SIZE), &resources);
-	
+
 	dataForkChecksum = dataForkToken.crc;
-	
+
 	printf("Writing XML data...\n"); fflush(stdout);
 	curResource = resources;
 	while(curResource->next != NULL)
@@ -204,19 +206,19 @@ int buildDmg(AbstractFile* abstractIn, AbstractFile* abstractOut, unsigned int B
 	curResource->next = writeNSiz(nsiz);
 	curResource = curResource->next;
 	releaseNSiz(nsiz);
-	
+
 	curResource->next = makePlst();
 	curResource = curResource->next;
-	
-	curResource->next = makeSize(volumeHeader);
+
+	curResource->next = makeSize(volumeInfo);
 	curResource = curResource->next;
-	
+
 	plistOffset = abstractOut->tell(abstractOut);
 	writeResources(abstractOut, resources);
 	plistSize = abstractOut->tell(abstractOut) - plistOffset;
-	
+
 	printf("Generating UDIF metadata...\n"); fflush(stdout);
-	
+
 	koly.fUDIFSignature = KOLY_SIGNATURE;
 	koly.fUDIFVersion = 4;
 	koly.fUDIFHeaderSize = sizeof(koly);
@@ -226,7 +228,7 @@ int buildDmg(AbstractFile* abstractIn, AbstractFile* abstractOut, unsigned int B
 	koly.fUDIFDataForkLength = plistOffset;
 	koly.fUDIFRsrcForkOffset = 0;
 	koly.fUDIFRsrcForkLength = 0;
-	
+
 	koly.fUDIFSegmentNumber = 1;
 	koly.fUDIFSegmentCount = 1;
 	koly.fUDIFSegmentID.data1 = rand();
@@ -240,35 +242,66 @@ int buildDmg(AbstractFile* abstractIn, AbstractFile* abstractOut, unsigned int B
 	koly.fUDIFXMLOffset = plistOffset;
 	koly.fUDIFXMLLength = plistSize;
 	memset(&(koly.reserved1), 0, 0x78);
-	
+
 	koly.fUDIFMasterChecksum.type = CHECKSUM_CRC32;
 	koly.fUDIFMasterChecksum.size = 0x20;
 	memset(&koly.fUDIFMasterChecksum.data, 0, sizeof(koly.fUDIFMasterChecksum.data));
 	koly.fUDIFMasterChecksum.data[0] = calculateMasterChecksum(resources);
-	printf("Master checksum: %x\n", koly.fUDIFMasterChecksum.data[0]); fflush(stdout); 
-	
+	printf("Master checksum: %x\n", koly.fUDIFMasterChecksum.data[0]); fflush(stdout);
+
 	koly.fUDIFImageVariant = kUDIFDeviceImageType;
-	koly.fUDIFSectorCount = (volumeHeader->totalBlocks * volumeHeader->blockSize)/SECTOR_SIZE
+	koly.fUDIFSectorCount = volumeSectors
 		+ ((EXTRA_SIZE + (BlockSize / SECTOR_SIZE / 2)) / (BlockSize / SECTOR_SIZE) * (BlockSize / SECTOR_SIZE));
 	koly.reserved2 = 0;
 	koly.reserved3 = 0;
 	koly.reserved4 = 0;
-	
-	printf("Writing out UDIF resource file...\n"); fflush(stdout); 
-	
+
+	printf("Writing out UDIF resource file...\n"); fflush(stdout);
+
 	writeUDIFResourceFile(abstractOut, &koly);
-	
+
 	printf("Cleaning up...\n"); fflush(stdout);
-	
+
 	releaseResources(resources);
-	
+
 	abstractOut->close(abstractOut);
+
+	printf("Done.\n"); fflush(stdout);
+
+	return TRUE;
+}
+
+int buildDmg(AbstractFile* abstractIn, AbstractFile* abstractOut, unsigned int BlockSize) {
+	io_func* io;
+	Volume* volume;
+	HFSPlusVolumeHeader* volumeHeader;
+	DMGVolumeInfo volumeInfo;
+	int result;
+
+	io = IOFuncFromAbstractFile(abstractIn);
+	volume = openVolume(io);
+	volumeHeader = volume->volumeHeader;
+
+	if(volumeHeader->signature != HFSX_SIGNATURE) {
+		printf("Warning: ASR data only reverse engineered for case-sensitive HFS+ volumes\n");fflush(stdout);
+	}
+
+	memset(&volumeInfo, 0, sizeof(volumeInfo));
+	volumeInfo.partition_name = "Mac_OS_X";
+	volumeInfo.partition_type = HFSX_VOLUME_TYPE;
+	volumeInfo.blockSize = volumeHeader->blockSize;
+	volumeInfo.totalBlocks = volumeHeader->totalBlocks;
+	volumeInfo.freeBlocks = volumeHeader->freeBlocks;
+	volumeInfo.modifyDate = volumeHeader->modifyDate;
+	volumeInfo.signature = volumeHeader->signature;
+	volumeInfo.isHFS = TRUE;
+
+	result = buildDmgWithVolumeInfo(abstractIn, abstractOut, BlockSize, &volumeInfo);
+
 	closeVolume(volume);
 	CLOSE(io);
-	
-	printf("Done.\n"); fflush(stdout);
-	
-	return TRUE;
+
+	return result;
 }
 
 int convertToDMG(AbstractFile* abstractIn, AbstractFile* abstractOut) {

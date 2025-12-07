@@ -9,6 +9,7 @@ extern "C" {
 #endif
 	int extractDmg(AbstractFile* abstractIn, AbstractFile* abstractOut, int partNum);
 	int buildDmg(AbstractFile* abstractIn, AbstractFile* abstractOut, unsigned int BlockSize);
+	int buildDmgWithVolumeInfo(AbstractFile* abstractIn, AbstractFile* abstractOut, unsigned int BlockSize, const DMGVolumeInfo* volumeInfo);
 
 	int convertToDMG(AbstractFile* abstractIn, AbstractFile* abstractOut);
 	int convertToISO(AbstractFile* abstractIn, AbstractFile* abstractOut);

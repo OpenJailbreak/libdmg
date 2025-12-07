@@ -858,17 +858,17 @@ ResourceKey* makePlst() {
   return insertData(NULL, "plst", 0, "", plstData, sizeof(plstData), ATTRIBUTE_HDIUTIL); 
 }
 
-ResourceKey* makeSize(HFSPlusVolumeHeader* volumeHeader) {
+ResourceKey* makeSize(const DMGVolumeInfo* volumeInfo) {
   SizeResource size;
   memset(&size, 0, sizeof(SizeResource));
   size.version = 5;
-  size.isHFS = 1;
+  size.isHFS = (volumeInfo && volumeInfo->isHFS) ? 1 : 0;
   size.unknown1 = 0;
   size.unknown2 = 0;
   size.unknown3 = 0;
-  size.volumeModified = volumeHeader->modifyDate;
+  size.volumeModified = volumeInfo ? volumeInfo->modifyDate : 0;
   size.unknown4 = 0;
-  size.volumeSignature = volumeHeader->signature;
+  size.volumeSignature = volumeInfo ? volumeInfo->signature : 0;
   size.sizePresent = 1;
 
   printf("making size data\n");  
