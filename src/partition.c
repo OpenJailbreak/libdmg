@@ -599,7 +599,6 @@ int writeATAPI(int pNum, AbstractFile* file, unsigned int BlockSize, ChecksumFun
   memset(&uncompressedToken, 0, sizeof(uncompressedToken));
   
   atapi = (char*) malloc(ATAPI_SIZE * SECTOR_SIZE);
-  printf("malloc: %p %d\n", atapi, ATAPI_SIZE * SECTOR_SIZE); fflush(stdout);
   memcpy(atapi, atapi_data, ATAPI_SIZE * SECTOR_SIZE);
   bufferFile = createAbstractFileFromMemory((void**)&atapi, ATAPI_SIZE * SECTOR_SIZE);
 
@@ -658,9 +657,17 @@ void readApplePartitionMap(AbstractFile* file, ResourceKey* resources, unsigned 
   AbstractFile* bufferFile;
   BLKXTable* blkx;
   Partition* partition;
+  ResourceKey* blkxKey;
+  ResourceData* blkxData;
   int i;
   
-  blkx = (BLKXTable*) (getDataByID(getResourceByKey(resources, "blkx"), 0)->data);
+  blkxKey = getResourceByKey(resources, "blkx");
+  if(blkxKey == NULL)
+    return;
+  blkxData = getDataByID(blkxKey, 0);
+  if(blkxData == NULL)
+    return;
+  blkx = (BLKXTable*) (blkxData->data);
 
   partition = (Partition*) malloc(512);
   bufferFile = createAbstractFileFromMemory((void**)&partition, 512);
@@ -757,8 +764,10 @@ Partition* createApplePartitionMap(uint32_t numSectors, const char* volumeType, 
   partition[0].pmSig = APPLE_PARTITION_MAP_SIGNATURE;
   partition[0].pmSigPad = 0;
   partition[0].pmMapBlkCnt = 0x4;
-  strcpy((char*)partition[0].pmPartName, "Mac_OS_X");
-  strcpy((char*)partition[0].pmParType, volumeType);
+  strncpy((char*)partition[0].pmPartName, "Mac_OS_X", sizeof(partition[0].pmPartName) - 1);
+  partition[0].pmPartName[sizeof(partition[0].pmPartName) - 1] = '\0';
+  strncpy((char*)partition[0].pmParType, volumeType, sizeof(partition[0].pmParType) - 1);
+  partition[0].pmParType[sizeof(partition[0].pmParType) - 1] = '\0';
   partition[0].pmPyPartStart = USER_OFFSET / (BlockSize / SECTOR_SIZE);
   partition[0].pmPartBlkCnt = numSectors / (BlockSize / SECTOR_SIZE);
   partition[0].pmLgDataStart = 0;

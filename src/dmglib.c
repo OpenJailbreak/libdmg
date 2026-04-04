@@ -20,7 +20,8 @@ int extractDmg(AbstractFile* abstractIn, AbstractFile* abstractOut, int partNum)
 	
 	/* reasonable assumption that 2 is the main partition, given that that's usually the case in SPUD layouts */
 	if(partNum < 0) {
-		blkxData = getResourceByKey(resources, "blkx")->data;
+		ResourceKey* blkxKey = getResourceByKey(resources, "blkx");
+		blkxData = blkxKey ? blkxKey->data : NULL;
 		while(blkxData != NULL) {
 			if(strstr(blkxData->name, "Apple_HFS") != NULL) {
 				break;
@@ -53,7 +54,9 @@ uint32_t calculateMasterChecksum(ResourceKey* resources) {
 	uint32_t result;
 	
 	blkxKeys = getResourceByKey(resources, "blkx");
-	
+	if(blkxKeys == NULL)
+		return 0;
+
 	data = blkxKeys->data;
 	blkxNum = 0;
 	while(data != NULL) {
@@ -500,7 +503,10 @@ int convertToISO(AbstractFile* abstractIn, AbstractFile* abstractOut) {
 	readUDIFResourceFile(abstractIn, &resourceFile);
 	resources = readResources(abstractIn, &resourceFile);
 
-	blkx = (getResourceByKey(resources, "blkx"))->data;
+	{
+		ResourceKey* blkxKey = getResourceByKey(resources, "blkx");
+		blkx = blkxKey ? blkxKey->data : NULL;
+	}
 	
 	printf("Writing out data..\n"); fflush(stdout);
 	

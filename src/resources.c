@@ -430,7 +430,12 @@ NSizResource* readNSiz(ResourceKey* resources) {
   char* curLoc;
   uint32_t modifyDate;
   
-  curData = getResourceByKey(resources, "nsiz")->data;
+  ResourceKey* nsizKey;
+  curData = NULL;
+  nsizKey = getResourceByKey(resources, "nsiz");
+  if(nsizKey == NULL)
+    return NULL;
+  curData = nsizKey->data;
   toReturn = NULL;
    
   while(curData != NULL) {
@@ -756,7 +761,10 @@ ResourceKey* getResourceByKey(ResourceKey* resources, const char* key) {
 
 ResourceData* getDataByID(ResourceKey* resource, int id) {
   ResourceData* curData;
-  
+
+  if(resource == NULL)
+    return NULL;
+
   curData = resource->data;
   
   while(curData != NULL) {
