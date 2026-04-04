@@ -168,8 +168,16 @@ io_func* openDmgFile(AbstractFile* abstractIn) {
 	dmg->dmg = abstractIn;
 	dmg->resources = readResources(abstractIn, &resourceFile);
 	dmg->numBLKX = 0;
-	
-	blkx = (getResourceByKey(dmg->resources, "blkx"))->data;
+
+	{
+		ResourceKey* blkxKey = getResourceByKey(dmg->resources, "blkx");
+		if(blkxKey == NULL) {
+			releaseResources(dmg->resources);
+			free(dmg);
+			return NULL;
+		}
+		blkx = blkxKey->data;
+	}
 	
 	curData = blkx;
 	while(curData != NULL) {

@@ -169,8 +169,11 @@ void abstractFilePrint(AbstractFile* file, const char* format, ...) {
 
 	buffer[0] = '\0';
 	va_start(args, format);
-	length = vsprintf(buffer, format, args);
+	length = vsnprintf(buffer, sizeof(buffer), format, args);
 	va_end(args);
+	if(length >= sizeof(buffer)) {
+		length = sizeof(buffer) - 1;
+	}
 	ASSERT(file->write(file, buffer, length) == length, "fwrite");
 }
 
